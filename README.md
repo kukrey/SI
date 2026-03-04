@@ -1,8 +1,8 @@
 # SI
 ## Sztuczna Inteligencja M3D
-Jakub Błażko 21215
-Michał Lepak 21255
-Dariusz Wilewski
+* Jakub Błażko 21215
+* Michał Lepak 21255
+* Dariusz Wilewski 21314
 ### Pomysł na Problem Plecakowy
 Sklep Internetowy z komponentami komputerowymi - Chęć zakupu zestawu komputerowego
 ## Kryteria oceny:
