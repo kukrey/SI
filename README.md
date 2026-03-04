@@ -5,13 +5,14 @@ Michał Lepak 21255
 Dariusz Wilewski
 ### Pomysł na Problem Plecakowy
 Sklep Internetowy z komponentami komputerowymi - Chęć zakupu zestawu komputerowego
-## Kryteria:
-1. Pojemnośc
-2. Typ=DDR5
-3. RGB=TAK
-4. Cena<=6000
-5. Pojemnośc Dysku
-6. Typ chłodzenia
+## Kryteria oceny:
+1. Pojemnośc ramu
+2. Typ ramu np.DDR5
+3. RGB np.TAK
+4. Cena np. <=6000
+5. Pojemnośc Dysku np. >=256GB
+6. Typ Dysku np. SSD
+7. Typ chłodzenia
 
 ## Ograniczenie
 1. Typ ramu
@@ -19,3 +20,9 @@ Sklep Internetowy z komponentami komputerowymi - Chęć zakupu zestawu komputero
 3. Typ procesora
 4. Zasilanie
 5. Obudowa
+
+
+# Opis co robimy dalej
+1. Potrzebujemy wygenerowac baze danych zestawów komputerowych
+2. System zgodności, wyświetla najepierw 100% zgodności potem procentowo od najwyższych do najniższych
+3. Laravel?
