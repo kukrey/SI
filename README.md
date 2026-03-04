@@ -1,21 +1,21 @@
 # SI
 ## Sztuczna Inteligencja M3D
-
+Jakub Błażko 21215
+Michał Lepak 21255
+Dariusz Wilewski
 ### Pomysł na Problem Plecakowy
-Sklep Internetowy z komponentami komputerowymi - Chęć zakupu RAM'u
-## Ograniczenia:
-Pojemnośc>=32GB
-Typ=DDR5
-RGB=TAK
-Cena<=1200
-ilość kości<=2
+Sklep Internetowy z komponentami komputerowymi - Chęć zakupu zestawu komputerowego
+## Kryteria:
+1.Pojemnośc
+2.Typ=DDR5
+3.RGB=TAK
+4.Cena<=6000
+5.Pojemnośc Dysku
+6.Typ chłodzenia
 
-
-
-Link to the sample section: [Link Text](#sample-section).
-
-Link to the helpful section: [Link Text](#thisll-be-a-helpful-section-about-the-greek-letter-Θ).
-
-Link to the first non-unique section: [Link Text](#this-heading-is-not-unique-in-the-file).
-
-Link to the second non-unique section: [Link Text](#this-heading-is-not-unique-in-the-file-1).
+##Ograniczenie
+1.Typ ramu
+2.Typ płyty głównej
+3.Typ procesora
+4.Zasilanie
+5.Obudowa
