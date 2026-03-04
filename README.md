@@ -13,7 +13,7 @@ Sklep Internetowy z komponentami komputerowymi - Chęć zakupu zestawu komputero
 5.Pojemnośc Dysku
 6.Typ chłodzenia
 
-##Ograniczenie
+## Ograniczenie
 1.Typ ramu
 2.Typ płyty głównej
 3.Typ procesora
