@@ -28,3 +28,9 @@ Sklep Internetowy z komponentami komputerowymi - Chęć zakupu RAM i płyty gło
 
 
 ## https://www.kaggle.com/datasets/warcoder/pc-parts
+
+## Uruchomienie wersji WWW
+1. Uruchom polecenie `python app.py`
+2. Program otworzy lokalna strone w przegladarce
+3. Formularz robi to samo co menu z `baza.py`, ale bez pracy w terminalu
+4. Ranking dalej zapisuje sie do pliku `hms_sets.csv`

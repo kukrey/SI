@@ -447,22 +447,18 @@ def _prompt_int(label, allow_skip=True, minimum=None):
         print("Wpisz poprawna liczbe calkowita.")
 
 
-def build_requirements_from_menu():
-    print("\n=== KONFIGURATOR CELU ZESTAWU (PLYTA + RAM) ===")
-
-    desired_ddr = _prompt_choice("Typ RAM", ["DDR3", "DDR4", "DDR5"], allow_skip=True)
-    motherboard_brand = _prompt_choice("Marka plyty", MOTHERBOARD_BRANDS, allow_skip=True)
-    ram_brand = _prompt_choice("Marka RAM", RAM_BRANDS, allow_skip=True)
-    preferred_color = _prompt_choice("Kolor", COLORS, allow_skip=True)
-    rgb_pref = _prompt_choice("RAM z RGB", ["yes", "no"], allow_skip=True)
-
-    total_budget = _prompt_int("Maksymalny budzet calego zestawu", allow_skip=True, minimum=1)
-    motherboard_budget = _prompt_int("Maksymalna cena plyty", allow_skip=True, minimum=1)
-    ram_budget = _prompt_int("Maksymalna cena RAM", allow_skip=True, minimum=1)
-
-    target_quality = _prompt_int("Docelowa jakosc/value (np. 80)", allow_skip=True, minimum=1)
-    hms_size = 10
-
+def build_requirements(
+    desired_ddr=None,
+    motherboard_brand=None,
+    ram_brand=None,
+    preferred_color=None,
+    rgb_pref=None,
+    total_budget=None,
+    motherboard_budget=None,
+    ram_budget=None,
+    target_quality=None,
+    hms_size=10,
+):
     if total_budget is not None:
         if motherboard_budget is None:
             motherboard_budget = int(total_budget * 0.6)
@@ -508,6 +504,49 @@ def build_requirements_from_menu():
     return motherboard_requirements, ram_requirements, hms_size
 
 
+def load_or_generate_data(base_dir=None, motherboards_count=1000, ram_count=1000):
+    output_dir = Path(base_dir) if base_dir else Path(__file__).resolve().parent
+    motherboards_path = output_dir / "motherboards.csv"
+    ram_path = output_dir / "ram.csv"
+
+    if motherboards_path.exists() and ram_path.exists():
+        return load_products(motherboards_path), load_products(ram_path)
+
+    return generate_hardware_data(
+        motherboards_count=motherboards_count,
+        ram_count=ram_count,
+        output_dir=output_dir,
+    )
+
+
+def build_requirements_from_menu():
+    print("\n=== KONFIGURATOR CELU ZESTAWU (PLYTA + RAM) ===")
+
+    desired_ddr = _prompt_choice("Typ RAM", ["DDR3", "DDR4", "DDR5"], allow_skip=True)
+    motherboard_brand = _prompt_choice("Marka plyty", MOTHERBOARD_BRANDS, allow_skip=True)
+    ram_brand = _prompt_choice("Marka RAM", RAM_BRANDS, allow_skip=True)
+    preferred_color = _prompt_choice("Kolor", COLORS, allow_skip=True)
+    rgb_pref = _prompt_choice("RAM z RGB", ["yes", "no"], allow_skip=True)
+
+    total_budget = _prompt_int("Maksymalny budzet calego zestawu", allow_skip=True, minimum=1)
+    motherboard_budget = _prompt_int("Maksymalna cena plyty", allow_skip=True, minimum=1)
+    ram_budget = _prompt_int("Maksymalna cena RAM", allow_skip=True, minimum=1)
+
+    target_quality = _prompt_int("Docelowa jakosc/value (np. 80)", allow_skip=True, minimum=1)
+    return build_requirements(
+        desired_ddr=desired_ddr,
+        motherboard_brand=motherboard_brand,
+        ram_brand=ram_brand,
+        preferred_color=preferred_color,
+        rgb_pref=rgb_pref,
+        total_budget=total_budget,
+        motherboard_budget=motherboard_budget,
+        ram_budget=ram_budget,
+        target_quality=target_quality,
+        hms_size=10,
+    )
+
+
 def print_set_results(set_hms, limit=5):
     if not set_hms:
         print("Brak kompatybilnych zestawow dla podanych wymagan.")
@@ -526,10 +565,7 @@ def print_set_results(set_hms, limit=5):
 
 
 if __name__ == "__main__":
-    generated_motherboards, generated_ram = generate_hardware_data(
-        motherboards_count=1000,
-        ram_count=1000,
-    )
+    generated_motherboards, generated_ram = load_or_generate_data()
 
     motherboard_req, ram_req, hms_size = build_requirements_from_menu()
 
