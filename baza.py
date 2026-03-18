@@ -141,23 +141,23 @@ def score_product(product, requirements):
 
     preferred_brand = requirements.get("brand")
     if preferred_brand:
-        score += 25 if product["brand"] == preferred_brand else 0
+        score += 25 if product["brand"] == preferred_brand else -8
 
     preferred_color = requirements.get("color")
     if preferred_color:
-        score += 8 if product["color"] == preferred_color else 0
+        score += 8 if product["color"] == preferred_color else -3
 
     preferred_ram_type = requirements.get("ram_type")
     if preferred_ram_type:
-        score += 20 if product.get("ram_type") == preferred_ram_type else 0
+        score += 20 if product.get("ram_type") == preferred_ram_type else -12
 
     preferred_supported_ram_type = requirements.get("supported_ram_type")
     if preferred_supported_ram_type:
-        score += 20 if product.get("supported_ram_type") == preferred_supported_ram_type else 0
+        score += 20 if product.get("supported_ram_type") == preferred_supported_ram_type else -12
 
     preferred_rgb = requirements.get("rgb")
     if preferred_rgb:
-        score += 10 if product.get("rgb") == preferred_rgb else 0
+        score += 10 if product.get("rgb") == preferred_rgb else -4
 
     min_value = requirements.get("min_value")
     if min_value is not None:
@@ -181,6 +181,29 @@ def score_product(product, requirements):
         score += max(0, 25 - abs(product["price"] - target_price) * 0.03)
 
     return score
+
+
+def is_product_valid(product):
+    product_type = product.get("type")
+    if product_type not in {"motherboard", "ram"}:
+        return False
+
+    if not product.get("name"):
+        return False
+
+    if product.get("price", 0) <= 0:
+        return False
+
+    if product.get("value", 0) < 0:
+        return False
+
+    if product_type == "motherboard" and not product.get("supported_ram_type"):
+        return False
+
+    if product_type == "ram" and not product.get("ram_type"):
+        return False
+
+    return True
 
 
 def initialize_hms(products, requirements, hms_size=15, candidate_pool=300):
@@ -226,30 +249,105 @@ def _extract_ram_metric(name, pattern, default=0):
     return int(match.group(1))
 
 
+def _score_exact_match(actual, expected, weight):
+    if not expected:
+        return 0.0, 0.0
+    return (weight if actual == expected else 0.0), float(weight)
+
+
+def _score_budget_match(price, max_price, weight):
+    if max_price is None:
+        return 0.0, 0.0
+
+    safe_limit = max(1, max_price)
+    overflow_ratio = max(0.0, (price - safe_limit) / safe_limit)
+    matched = max(0.0, weight * (1.0 - overflow_ratio))
+    return matched, float(weight)
+
+
+def _score_target_value_match(value, target_value, weight):
+    if target_value is None:
+        return 0.0, 0.0
+
+    safe_target = max(1, target_value)
+    diff_ratio = abs(value - safe_target) / safe_target
+    matched = max(0.0, weight * (1.0 - diff_ratio))
+    return matched, float(weight)
+
+
+def _score_min_value_match(value, min_value, weight):
+    if min_value is None:
+        return 0.0, 0.0
+
+    safe_min = max(1, min_value)
+    ratio = min(1.0, value / safe_min)
+    matched = max(0.0, weight * ratio)
+    return matched, float(weight)
+
+
 def score_set(motherboard, ram_module, motherboard_requirements, ram_requirements):
+    if not is_product_valid(motherboard):
+        return float("-inf")
+
+    if not is_product_valid(ram_module):
+        return float("-inf")
+
     if motherboard.get("supported_ram_type") != ram_module.get("ram_type"):
         return float("-inf")
 
-    score = 0.0
-    score += score_product(motherboard, motherboard_requirements)
-    score += score_product(ram_module, ram_requirements)
+    matched_points = 0.0
+    possible_points = 0.0
 
-    # Extra preference for stronger RAM performance in selected sets.
-    ram_speed = _extract_ram_metric(ram_module.get("name", ""), r"(\d+)MHz")
-    ram_capacity = _extract_ram_metric(ram_module.get("name", ""), r"(\d+)GB")
-    score += ram_speed / 400
-    score += ram_capacity / 2
+    # Zgodnosc cech plyty.
+    for matched, possible in (
+        _score_exact_match(motherboard.get("brand"), motherboard_requirements.get("brand"), 12),
+        _score_exact_match(motherboard.get("color"), motherboard_requirements.get("color"), 7),
+        _score_exact_match(
+            motherboard.get("supported_ram_type"),
+            motherboard_requirements.get("supported_ram_type"),
+            15,
+        ),
+        _score_budget_match(motherboard.get("price", 0), motherboard_requirements.get("max_price"), 20),
+        _score_target_value_match(motherboard.get("value", 0), motherboard_requirements.get("target_value"), 8),
+        _score_min_value_match(motherboard.get("value", 0), motherboard_requirements.get("min_value"), 8),
+    ):
+        matched_points += matched
+        possible_points += possible
 
+    # Zgodnosc cech RAM.
+    for matched, possible in (
+        _score_exact_match(ram_module.get("brand"), ram_requirements.get("brand"), 12),
+        _score_exact_match(ram_module.get("color"), ram_requirements.get("color"), 7),
+        _score_exact_match(ram_module.get("ram_type"), ram_requirements.get("ram_type"), 15),
+        _score_exact_match(ram_module.get("rgb"), ram_requirements.get("rgb"), 8),
+        _score_budget_match(ram_module.get("price", 0), ram_requirements.get("max_price"), 20),
+        _score_target_value_match(ram_module.get("value", 0), ram_requirements.get("target_value"), 8),
+        _score_min_value_match(ram_module.get("value", 0), ram_requirements.get("min_value"), 8),
+    ):
+        matched_points += matched
+        possible_points += possible
+
+    # Zgodnosc budzetu calego zestawu.
     total_price = motherboard["price"] + ram_module["price"]
     max_total_price = (motherboard_requirements.get("max_price") or 0) + (ram_requirements.get("max_price") or 0)
-    if max_total_price > 0:
-        if total_price <= max_total_price:
-            score += 40
-            score += ((max_total_price - total_price) / max_total_price) * 40
-        else:
-            score -= (total_price - max_total_price) * 0.2
+    matched, possible = _score_budget_match(total_price, max_total_price if max_total_price > 0 else None, 25)
+    matched_points += matched
+    possible_points += possible
 
-    return score
+    # Dodatkowe lekkie kryteria jakosciowe (zawsze aktywne, male wagi).
+    ram_speed = _extract_ram_metric(ram_module.get("name", ""), r"(\d+)MHz")
+    ram_capacity = _extract_ram_metric(ram_module.get("name", ""), r"(\d+)GB")
+
+    quality_possible = 8.0
+    speed_component = min(1.0, ram_speed / 6400) * 4.0
+    capacity_component = min(1.0, ram_capacity / 64) * 4.0
+    matched_points += speed_component + capacity_component
+    possible_points += quality_possible
+
+    if possible_points <= 0:
+        return 0.0
+
+    return (matched_points / possible_points) * 100.0
 
 
 def initialize_set_hms(
@@ -258,18 +356,34 @@ def initialize_set_hms(
     motherboard_requirements,
     ram_requirements,
     hms_size=15,
-    motherboard_pool=120,
-    ram_pool=180,
+    motherboard_pool=180,
+    ram_pool=700,
+    ram_candidates_per_motherboard=140,
 ):
     if not motherboards or not ram_modules:
         return []
 
-    sampled_motherboards = random.sample(motherboards, min(len(motherboards), motherboard_pool))
-    sampled_ram_modules = random.sample(ram_modules, min(len(ram_modules), ram_pool))
+    # Liczymy procent podobienstwa dla wszystkich kompatybilnych par.
+    valid_motherboards = [motherboard for motherboard in motherboards if is_product_valid(motherboard)]
+    valid_ram_modules = [ram_module for ram_module in ram_modules if is_product_valid(ram_module)]
+
+    if not valid_motherboards or not valid_ram_modules:
+        return []
+
+    ram_by_type = {}
+    for ram_module in valid_ram_modules:
+        ram_type = ram_module.get("ram_type")
+        if not ram_type:
+            continue
+        ram_by_type.setdefault(ram_type, []).append(ram_module)
 
     scored_sets = []
-    for motherboard in sampled_motherboards:
-        for ram_module in sampled_ram_modules:
+    for motherboard in valid_motherboards:
+        compatible_rams = ram_by_type.get(motherboard.get("supported_ram_type"), [])
+        if not compatible_rams:
+            continue
+
+        for ram_module in compatible_rams:
             if motherboard.get("supported_ram_type") != ram_module.get("ram_type"):
                 continue
 
@@ -286,18 +400,6 @@ def initialize_set_hms(
                     },
                 }
             )
-
-    if scored_sets:
-        min_raw = min(item["score"] for item in scored_sets)
-        max_raw = max(item["score"] for item in scored_sets)
-
-        if max_raw == min_raw:
-            for item in scored_sets:
-                item["score"] = 100.0
-        else:
-            for item in scored_sets:
-                normalized_score = ((item["score"] - min_raw) / (max_raw - min_raw)) * 100
-                item["score"] = normalized_score
 
     scored_sets.sort(
         key=lambda item: (

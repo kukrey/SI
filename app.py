@@ -47,7 +47,6 @@ def _default_form_data():
         "total_budget": "",
         "motherboard_budget": "",
         "ram_budget": "",
-        "target_quality": "",
     }
 
 
@@ -121,7 +120,7 @@ def _render_results(results, search_performed):
                 f"""
                 <article class=\"result-card\">
                     <div class=\"result-topline\">
-                        <span>Score {item['score']}</span>
+                            <span>Score {item['score']}%</span>
                         <strong>{item['total_price']}</strong>
                     </div>
                     <h3>{escape(item['motherboard']['name'])}</h3>
@@ -132,12 +131,16 @@ def _render_results(results, search_performed):
                             <dd>{escape(item['motherboard']['brand'])} • {escape(item['motherboard']['color'])} • {escape(item['motherboard']['supported_ram_type'])}</dd>
                         </div>
                         <div>
+                            <dt>Cena plyty</dt>
+                            <dd>{item['motherboard']['price']}</dd>
+                        </div>
+                        <div>
                             <dt>RAM</dt>
                             <dd>{escape(item['ram']['brand'])} • {escape(item['ram']['color'])} • RGB {escape(item['ram']['rgb'])}</dd>
                         </div>
                         <div>
-                            <dt>Value razem</dt>
-                            <dd>{item['total_value']}</dd>
+                            <dt>Cena RAM</dt>
+                            <dd>{item['ram']['price']}</dd>
                         </div>
                     </dl>
                 </article>
@@ -227,11 +230,6 @@ def render_page(form_data, results, selected_set, search_performed):
                         {_text_input('ram_budget', form_data['ram_budget'], 'np. 1000')}
                     </label>
 
-                    <label>
-                        <span>Docelowa jakosc / value</span>
-                        {_text_input('target_quality', form_data['target_quality'], 'np. 80')}
-                    </label>
-
                     <button type=\"submit\">Pokaz najlepsze zestawy</button>
                 </form>
             </section>
@@ -292,7 +290,6 @@ class AppHandler(BaseHTTPRequestHandler):
             total_budget=_parse_positive_int(form_data["total_budget"]),
             motherboard_budget=_parse_positive_int(form_data["motherboard_budget"]),
             ram_budget=_parse_positive_int(form_data["ram_budget"]),
-            target_quality=_parse_positive_int(form_data["target_quality"]),
             hms_size=DEFAULT_HMS_SIZE,
         )
 
