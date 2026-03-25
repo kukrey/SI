@@ -411,6 +411,141 @@ def initialize_set_hms(
     return scored_sets[: min(hms_size, len(scored_sets))]
 
 
+def _build_scored_set(motherboard, ram_module, motherboard_requirements, ram_requirements):
+    set_score = score_set(motherboard, ram_module, motherboard_requirements, ram_requirements)
+    if set_score == float("-inf"):
+        return None
+
+    return {
+        "score": set_score,
+        "set": {
+            "motherboard": motherboard,
+            "ram": ram_module,
+        },
+    }
+
+
+def _random_scored_set(valid_motherboards, ram_by_type, motherboard_requirements, ram_requirements):
+    if not valid_motherboards or not ram_by_type:
+        return None
+
+    random_motherboard = random.choice(valid_motherboards)
+    compatible_rams = ram_by_type.get(random_motherboard.get("supported_ram_type"), [])
+    if not compatible_rams:
+        return None
+
+    random_ram = random.choice(compatible_rams)
+    return _build_scored_set(random_motherboard, random_ram, motherboard_requirements, ram_requirements)
+
+
+def initialize_set_hms_iterative(
+    motherboards,
+    ram_modules,
+    motherboard_requirements,
+    ram_requirements,
+    hms_size=15,
+    elite_ratio=0.35,
+    max_iterations=25,
+):
+    valid_motherboards = [motherboard for motherboard in motherboards if is_product_valid(motherboard)]
+    valid_ram_modules = [ram_module for ram_module in ram_modules if is_product_valid(ram_module)]
+
+    if not valid_motherboards or not valid_ram_modules:
+        return {
+            "set_hms": [],
+            "initial_random_set": None,
+            "iteration_trace": [],
+        }
+
+    ram_by_type = {}
+    for ram_module in valid_ram_modules:
+        ram_type = ram_module.get("ram_type")
+        if ram_type:
+            ram_by_type.setdefault(ram_type, []).append(ram_module)
+
+    set_hms = []
+    attempts = 0
+    max_attempts = max(1000, hms_size * 80)
+
+    while len(set_hms) < hms_size and attempts < max_attempts:
+        attempts += 1
+        random_set = _random_scored_set(
+            valid_motherboards,
+            ram_by_type,
+            motherboard_requirements,
+            ram_requirements,
+        )
+        if random_set is not None:
+            set_hms.append(random_set)
+
+    if not set_hms:
+        return {
+            "set_hms": [],
+            "initial_random_set": None,
+            "iteration_trace": [],
+        }
+
+    initial_random_set = set_hms[0]
+    iteration_trace = []
+
+    for iteration in range(1, max_iterations + 1):
+        set_hms.sort(key=lambda item: item["score"], reverse=True)
+        best_before = set_hms[0]["score"]
+
+        elite_count = max(1, int(round(hms_size * elite_ratio)))
+        elite_count = min(elite_count, len(set_hms))
+        elite = set_hms[:elite_count]
+
+        new_population = list(elite)
+        refill_attempts = 0
+        refill_target = hms_size
+        max_refill_attempts = max(3000, hms_size * 120)
+
+        while len(new_population) < refill_target and refill_attempts < max_refill_attempts:
+            refill_attempts += 1
+            random_set = _random_scored_set(
+                valid_motherboards,
+                ram_by_type,
+                motherboard_requirements,
+                ram_requirements,
+            )
+            if random_set is not None:
+                new_population.append(random_set)
+
+        if not new_population:
+            break
+
+        new_population.sort(key=lambda item: item["score"], reverse=True)
+        set_hms = new_population[:hms_size]
+
+        best_after = set_hms[0]["score"]
+        iteration_trace.append(
+            {
+                "iteration": iteration,
+                "elite_kept": elite_count,
+                "best_before": round(best_before, 3),
+                "best_after": round(best_after, 3),
+            }
+        )
+
+        if best_after >= 99.5:
+            break
+
+    set_hms.sort(
+        key=lambda item: (
+            -item["score"],
+            item["set"]["motherboard"]["price"] + item["set"]["ram"]["price"],
+            -(item["set"]["motherboard"]["value"] + item["set"]["ram"]["value"]),
+        )
+    )
+
+    return {
+        "set_hms": set_hms[: min(hms_size, len(set_hms))],
+        "initial_random_set": initial_random_set,
+        "iteration_trace": iteration_trace,
+    }
+
+
 def save_hms(file_path, hms):
     if not hms:
         return
@@ -495,14 +630,109 @@ def save_set_hms(file_path, set_hms):
         writer.writerows(rows)
 
 
+def search_random_solutions(
+    motherboards,
+    ram_modules,
+    motherboard_requirements,
+    ram_requirements,
+    solutions_count=15,
+    show_progress=True,
+):
+    """Losuje WIELOKROTNIE dopóki nie znajdzie N kompatybilnych rozwiązań."""
+    valid_motherboards = [mb for mb in motherboards if is_product_valid(mb)]
+    valid_ram_modules = [ram for ram in ram_modules if is_product_valid(ram)]
+
+    if not valid_motherboards or not valid_ram_modules:
+        return [], {
+            "total": 0,
+            "compatible": 0,
+            "valid": 0,
+            "incompatible": 0,
+        }
+
+    all_solutions = []
+    max_attempts = solutions_count * 100  # Maksymalnie 1500 prób
+    attempts = 0
+
+    if show_progress:
+        print(f"\n[LOSOWE WYSZUKIWANIE] Szukam {solutions_count} kompatybilnych rozwiazan...")
+        print(f"  Losuje wielokrotnie az znajde wystarczajaco dobrych parow\n")
+
+    # Losuj dopóki nie mamy wystarczająco kompatybilnych rozwiązań
+    while len(all_solutions) < solutions_count and attempts < max_attempts:
+        attempts += 1
+
+        motherboard = random.choice(valid_motherboards)
+        ram_module = random.choice(valid_ram_modules)
+
+        # Sprawdź czy para jest kompatybilna (zgodne DDR)
+        is_compatible = motherboard.get("supported_ram_type") == ram_module.get("ram_type")
+
+        # Wyświetl każdą próbę
+        if show_progress:
+            status = "OK" if is_compatible else "NIEKOMPATYBILNE"
+            print(f"  Proba #{attempts}: {motherboard.get('supported_ram_type')} <-> {ram_module.get('ram_type')} = {status}")
+
+        # Pomiń niezgodne pary - chcemy tylko kompatybilne!
+        if not is_compatible:
+            continue
+
+        # Policz score dla kompatybilnej pary
+        set_score = score_set(motherboard, ram_module, motherboard_requirements, ram_requirements)
+
+        # Dodaj tylko jeśli score jest OK (nie -inf)
+        if set_score != float("-inf"):
+            all_solutions.append({
+                "score": set_score,
+                "set": {
+                    "motherboard": motherboard,
+                    "ram": ram_module,
+                },
+                "is_compatible": True,  # Wszystkie są kompatybilne
+            })
+
+            if show_progress:
+                print(f"    -> ZNALEZIONO #{len(all_solutions)}: Score={set_score:.1f}% | {motherboard['name'][:40]} + {ram_module['name'][:40]}\n")
+
+    # Sortuj według score (najlepsze na górze)
+    all_solutions.sort(key=lambda x: x["score"], reverse=True)
+
+    if show_progress:
+        print(f"\n  [OK] Znaleziono {len(all_solutions)} kompatybilnych rozwiazan po {attempts} probach")
+        print(f"  [OK] Wszystkie maja zgodny DDR i pozytywny score")
+
+        if all_solutions:
+            best = all_solutions[0]
+            mb = best["set"]["motherboard"]
+            ram = best["set"]["ram"]
+            total_price = mb["price"] + ram["price"]
+            print(f"\n  >> NAJLEPSZE ROZWIAZANIE:")
+            print(f"    Score: {best['score']:.3f}%")
+            print(f"    Plyta: {mb['name']} ({mb['supported_ram_type']})")
+            print(f"    RAM: {ram['name']} ({ram['ram_type']})")
+            print(f"    Cena calkowita: {total_price} zl")
+        print()
+
+    stats = {
+        "total": len(all_solutions),
+        "compatible": len(all_solutions),  # Wszystkie
+        "valid": len(all_solutions),  # Wszystkie
+        "incompatible": 0,  # Zero - odfiltrowaliśmy
+        "attempts": attempts,  # Dodatkowa statystyka
+    }
+
+    return all_solutions, stats
+
+
 def select_best_matches(motherboards, ram_modules, motherboard_requirements, ram_requirements, hms_size=15):
-    set_hms = initialize_set_hms(
+    iterative_result = initialize_set_hms_iterative(
         motherboards,
         ram_modules,
         motherboard_requirements,
         ram_requirements,
         hms_size=hms_size,
     )
+    set_hms = iterative_result["set_hms"]
 
     selected_set = pick_set_from_hms(set_hms)
 
@@ -514,6 +744,8 @@ def select_best_matches(motherboards, ram_modules, motherboard_requirements, ram
         "selected_ram": selected_ram,
         "selected_set": selected_set,
         "set_hms": set_hms,
+        "initial_random_set": iterative_result["initial_random_set"],
+        "iteration_trace": iterative_result["iteration_trace"],
     }
 
 
