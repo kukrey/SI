@@ -355,7 +355,7 @@ def initialize_set_hms(
     ram_modules,
     motherboard_requirements,
     ram_requirements,
-    hms_size=15,
+    hms_size=10,
     motherboard_pool=180,
     ram_pool=700,
     ram_candidates_per_motherboard=140,
@@ -443,9 +443,8 @@ def initialize_set_hms_iterative(
     ram_modules,
     motherboard_requirements,
     ram_requirements,
-    hms_size=15,
+    hms_size=10,
     elite_ratio=0.35,
-    max_iterations=25,
 ):
     valid_motherboards = [motherboard for motherboard in motherboards if is_product_valid(motherboard)]
     valid_ram_modules = [ram_module for ram_module in ram_modules if is_product_valid(ram_module)]
@@ -465,7 +464,7 @@ def initialize_set_hms_iterative(
 
     set_hms = []
     attempts = 0
-    max_attempts = max(1000, hms_size * 80)
+    max_attempts = 100000
 
     while len(set_hms) < hms_size and attempts < max_attempts:
         attempts += 1
@@ -499,7 +498,7 @@ def initialize_set_hms_iterative(
         new_population = list(elite)
         refill_attempts = 0
         refill_target = hms_size
-        max_refill_attempts = max(3000, hms_size * 120)
+        max_refill_attempts = 100000
 
         while len(new_population) < refill_target and refill_attempts < max_refill_attempts:
             refill_attempts += 1
@@ -512,24 +511,19 @@ def initialize_set_hms_iterative(
             if random_set is not None:
                 new_population.append(random_set)
 
-        if not new_population:
-            break
+        if new_population:
+            new_population.sort(key=lambda item: item["score"], reverse=True)
+            set_hms = new_population[:hms_size]
 
-        new_population.sort(key=lambda item: item["score"], reverse=True)
-        set_hms = new_population[:hms_size]
-
-        best_after = set_hms[0]["score"]
-        iteration_trace.append(
-            {
-                "iteration": iteration,
-                "elite_kept": elite_count,
-                "best_before": round(best_before, 3),
-                "best_after": round(best_after, 3),
-            }
-        )
-
-        if best_after >= 99.5:
-            break
+            best_after = set_hms[0]["score"]
+            iteration_trace.append(
+                {
+                    "iteration": iteration,
+                    "elite_kept": elite_count,
+                    "best_before": round(best_before, 3),
+                    "best_after": round(best_after, 3),
+                }
+            )
 
     set_hms.sort(
         key=lambda item: (
@@ -635,7 +629,7 @@ def search_random_solutions(
     ram_modules,
     motherboard_requirements,
     ram_requirements,
-    solutions_count=15,
+    solutions_count=10,
     show_progress=True,
 ):
     """Losuje WIELOKROTNIE dopóki nie znajdzie N kompatybilnych rozwiązań."""
@@ -724,7 +718,7 @@ def search_random_solutions(
     return all_solutions, stats
 
 
-def select_best_matches(motherboards, ram_modules, motherboard_requirements, ram_requirements, hms_size=15):
+def select_best_matches(motherboards, ram_modules, motherboard_requirements, ram_requirements, hms_size=10):
     iterative_result = initialize_set_hms_iterative(
         motherboards,
         ram_modules,
