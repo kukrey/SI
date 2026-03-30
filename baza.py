@@ -445,6 +445,7 @@ def initialize_set_hms_iterative(
     ram_requirements,
     hms_size=10,
     elite_ratio=0.35,
+    max_iterations=100000,
 ):
     valid_motherboards = [motherboard for motherboard in motherboards if is_product_valid(motherboard)]
     valid_ram_modules = [ram_module for ram_module in ram_modules if is_product_valid(ram_module)]
@@ -630,9 +631,10 @@ def search_random_solutions(
     motherboard_requirements,
     ram_requirements,
     solutions_count=10,
+    iterations=10000,
     show_progress=True,
 ):
-    """Losuje WIELOKROTNIE dopóki nie znajdzie N kompatybilnych rozwiązań."""
+    """Tworzy losowe top N i ulepsza je przez zadana liczbe iteracji."""
     valid_motherboards = [mb for mb in motherboards if is_product_valid(mb)]
     valid_ram_modules = [ram for ram in ram_modules if is_product_valid(ram)]
 
@@ -644,16 +646,17 @@ def search_random_solutions(
             "incompatible": 0,
         }
 
-    all_solutions = []
-    max_attempts = solutions_count * 100  # Maksymalnie 1500 prób
+    best_solutions = {}
     attempts = 0
+    compatible_attempts = 0
+    max_initial_attempts = max(10000, solutions_count * 500)
 
     if show_progress:
-        print(f"\n[LOSOWE WYSZUKIWANIE] Szukam {solutions_count} kompatybilnych rozwiazan...")
-        print(f"  Losuje wielokrotnie az znajde wystarczajaco dobrych parow\n")
+        print(f"\n[LOSOWE WYSZUKIWANIE] Tworze top {solutions_count} kompatybilnych rozwiazan")
+        print(f"  Etap 1: losowanie startowe, Etap 2: {iterations} iteracji ulepszania\n")
 
-    # Losuj dopóki nie mamy wystarczająco kompatybilnych rozwiązań
-    while len(all_solutions) < solutions_count and attempts < max_attempts:
+    # Etap 1: wypelnij poczatkowe top N kompatybilnymi parami.
+    while len(best_solutions) < solutions_count and attempts < max_initial_attempts:
         attempts += 1
 
         motherboard = random.choice(valid_motherboards)
@@ -662,38 +665,73 @@ def search_random_solutions(
         # Sprawdź czy para jest kompatybilna (zgodne DDR)
         is_compatible = motherboard.get("supported_ram_type") == ram_module.get("ram_type")
 
-        # Wyświetl każdą próbę
-        if show_progress:
-            status = "OK" if is_compatible else "NIEKOMPATYBILNE"
-            print(f"  Proba #{attempts}: {motherboard.get('supported_ram_type')} <-> {ram_module.get('ram_type')} = {status}")
-
-        # Pomiń niezgodne pary - chcemy tylko kompatybilne!
         if not is_compatible:
             continue
 
-        # Policz score dla kompatybilnej pary
+        compatible_attempts += 1
         set_score = score_set(motherboard, ram_module, motherboard_requirements, ram_requirements)
-
-        # Dodaj tylko jeśli score jest OK (nie -inf)
         if set_score != float("-inf"):
-            all_solutions.append({
+            solution_key = (motherboard["name"], ram_module["name"])
+            candidate = {
                 "score": set_score,
                 "set": {
                     "motherboard": motherboard,
                     "ram": ram_module,
                 },
-                "is_compatible": True,  # Wszystkie są kompatybilne
-            })
+                "is_compatible": True,
+            }
 
-            if show_progress:
-                print(f"    -> ZNALEZIONO #{len(all_solutions)}: Score={set_score:.1f}% | {motherboard['name'][:40]} + {ram_module['name'][:40]}\n")
+            existing = best_solutions.get(solution_key)
+            if existing is None or candidate["score"] > existing["score"]:
+                best_solutions[solution_key] = candidate
 
-    # Sortuj według score (najlepsze na górze)
-    all_solutions.sort(key=lambda x: x["score"], reverse=True)
+    # Etap 2: iteracyjne losowe ulepszanie top N.
+    for _ in range(iterations):
+        attempts += 1
+
+        motherboard = random.choice(valid_motherboards)
+        ram_module = random.choice(valid_ram_modules)
+        if motherboard.get("supported_ram_type") != ram_module.get("ram_type"):
+            continue
+
+        compatible_attempts += 1
+        set_score = score_set(motherboard, ram_module, motherboard_requirements, ram_requirements)
+        if set_score == float("-inf"):
+            continue
+
+        solution_key = (motherboard["name"], ram_module["name"])
+        candidate = {
+            "score": set_score,
+            "set": {
+                "motherboard": motherboard,
+                "ram": ram_module,
+            },
+            "is_compatible": True,
+        }
+
+        existing = best_solutions.get(solution_key)
+        if existing is not None:
+            if candidate["score"] > existing["score"]:
+                best_solutions[solution_key] = candidate
+            continue
+
+        if len(best_solutions) < solutions_count:
+            best_solutions[solution_key] = candidate
+            continue
+
+        worst_key = min(best_solutions, key=lambda key: best_solutions[key]["score"])
+        if candidate["score"] > best_solutions[worst_key]["score"]:
+            del best_solutions[worst_key]
+            best_solutions[solution_key] = candidate
+
+    all_solutions = sorted(best_solutions.values(), key=lambda x: x["score"], reverse=True)
+    all_solutions = all_solutions[:solutions_count]
 
     if show_progress:
-        print(f"\n  [OK] Znaleziono {len(all_solutions)} kompatybilnych rozwiazan po {attempts} probach")
-        print(f"  [OK] Wszystkie maja zgodny DDR i pozytywny score")
+        print(f"\n  [OK] Znaleziono {len(all_solutions)} kompatybilnych rozwiazan")
+        print(f"  [OK] Laczna liczba prob: {attempts}")
+        print(f"  [OK] Proby kompatybilne: {compatible_attempts}")
+        print(f"  [OK] Iteracje ulepszania: {iterations}")
 
         if all_solutions:
             best = all_solutions[0]
@@ -709,10 +747,11 @@ def search_random_solutions(
 
     stats = {
         "total": len(all_solutions),
-        "compatible": len(all_solutions),  # Wszystkie
-        "valid": len(all_solutions),  # Wszystkie
-        "incompatible": 0,  # Zero - odfiltrowaliśmy
-        "attempts": attempts,  # Dodatkowa statystyka
+        "compatible": len(all_solutions),
+        "valid": len(all_solutions),
+        "incompatible": 0,
+        "attempts": attempts,
+        "iterations": iterations,
     }
 
     return all_solutions, stats

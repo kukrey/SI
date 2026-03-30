@@ -678,7 +678,7 @@ def render_page(form_data, results, selected_set, random_stats, iteration_trace,
                             <p class="eyebrow">Wyniki</p>
                             <h2>Znalezione zestawy (posortowane)</h2>
                         </div>
-                        <span class="file-pill">zapis: hms_sets.csv i random_solutions_15.csv</span>
+                        <span class="file-pill">zapis: hms_sets.csv i random_solutions_10.csv</span>
                     </div>
                     {_render_results(results, search_performed)}
                 </section>
@@ -729,19 +729,20 @@ class AppHandler(BaseHTTPRequestHandler):
         print("URUCHAMIANIE ALGORYTMU LOSOWEGO WYSZUKIWANIA")
         print("="*70)
 
-        # Znajdź 15 losowych rozwiązań
+        # Znajdz 10 losowych rozwiazan i ulepszaj przez 10000 iteracji.
         all_solutions, stats = search_random_solutions(
             motherboards,
             ram_modules,
             motherboard_requirements=motherboard_requirements,
             ram_requirements=ram_requirements,
-            solutions_count=15,
+            solutions_count=10,
+            iterations=10000,
             show_progress=True,
         )
 
-        # Zapisz wszystkie 15 rozwiązań do pliku
-        save_set_hms(BASE_DIR / "random_solutions_15.csv", all_solutions)
-        print(f"[OK] Zapisano {len(all_solutions)} rozwiazan do pliku: random_solutions_15.csv")
+        # Zapisz wszystkie rozwiazania do pliku.
+        save_set_hms(BASE_DIR / "random_solutions_10.csv", all_solutions)
+        print(f"[OK] Zapisano {len(all_solutions)} rozwiazan do pliku: random_solutions_10.csv")
 
         # Zapisz również do hms_sets.csv (wszystkie znalezione)
         save_set_hms(BASE_DIR / "hms_sets.csv", all_solutions)
